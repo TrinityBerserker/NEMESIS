@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEMESIS — Autonomous Red Team Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --cyan: #00e5ff;
+  --cyan-dim: #00b8d4;
+  --red: #ff1744;
+  --green: #00e676;
+  --bg: #050810;
+  --bg2: #080d1a;
+  --bg3: #0d1530;
+  --border: rgba(0,229,255,0.15);
+  --text: #c9d6e3;
+  --mono: 'Share Tech Mono', monospace;
+  --title: 'Orbitron', sans-serif;
+  --body: 'Inter', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+/* ── SCANLINE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── GRID BG ── */
+.grid-bg {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── HERO ── */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  z-index: 1;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 200px;
+  background: linear-gradient(transparent, var(--bg));
+  pointer-events: none;
+}
+
+/* ── CORNER DECORATIONS ── */
+.corner {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  opacity: 0.5;
+}
+.corner-tl { top: 30px; left: 30px; border-top: 1px solid var(--cyan); border-left: 1px solid var(--cyan); }
+.corner-tr { top: 30px; right: 30px; border-top: 1px solid var(--cyan); border-right: 1px solid var(--cyan); }
+.corner-bl { bottom: 30px; left: 30px; border-bottom: 1px solid var(--cyan); border-left: 1px solid var(--cyan); }
+.corner-br { bottom: 30px; right: 30px; border-bottom: 1px solid var(--cyan); border-right: 1px solid var(--cyan); }
+
+/* ── STATUS BAR ── */
+.status-bar {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--cyan);
+  opacity: 0.6;
+  letter-spacing: 2px;
+  margin-bottom: 2.5rem;
+  animation: fadeIn 1s ease forwards;
+}
+
+/* ── TITLE GLITCH ── */
+.title-wrap {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  font-family: var(--title);
+  font-size: clamp(4rem, 12vw, 9rem);
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  position: relative;
+  display: inline-block;
+  animation: titleReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+}
+
+.title::before,
+.title::after {
+  content: 'NEMESIS';
+  position: absolute;
+  inset: 0;
+  font-family: var(--title);
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+
+.title::before {
+  color: var(--cyan);
+  clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
+  animation: glitch1 4s infinite;
+  opacity: 0.8;
+}
+
+.title::after {
+  color: var(--red);
+  clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
+  animation: glitch2 4s infinite;
+  opacity: 0.8;
+}
+
+@keyframes glitch1 {
+  0%, 90%, 100% { transform: translate(0); opacity: 0; }
+  92% { transform: translate(-3px, 1px); opacity: 0.8; }
+  94% { transform: translate(3px, -1px); opacity: 0.8; }
+  96% { transform: translate(-1px, 2px); opacity: 0.8; }
+  98% { transform: translate(0); opacity: 0; }
+}
+
+@keyframes glitch2 {
+  0%, 91%, 100% { transform: translate(0); opacity: 0; }
+  93% { transform: translate(3px, 2px); opacity: 0.8; }
+  95% { transform: translate(-3px, -1px); opacity: 0.8; }
+  97% { transform: translate(2px, 1px); opacity: 0.8; }
+  99% { transform: translate(0); opacity: 0; }
+}
+
+@keyframes titleReveal {
+  from { opacity: 0; transform: translateY(30px) skewX(-3deg); }
+  to { opacity: 1; transform: translateY(0) skewX(0); }
+}
+
+/* ── SUBTITLE TYPING ── */
+.subtitle {
+  font-family: var(--mono);
+  font-size: clamp(0.8rem, 2vw, 1rem);
+  color: var(--cyan);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  min-height: 1.5em;
+}
+
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--cyan);
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* ── BADGES ── */
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 2.5rem;
+  animation: fadeIn 1s ease 1.2s both;
+}
+
+.badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 12px;
+  border: 1px solid;
+  letter-spacing: 1px;
+}
+
+.badge-cyan { border-color: var(--cyan); color: var(--cyan); background: rgba(0,229,255,0.05); }
+.badge-green { border-color: var(--green); color: var(--green); background: rgba(0,230,118,0.05); }
+.badge-red { border-color: var(--red); color: var(--red); background: rgba(255,23,68,0.05); }
+
+/* ── CTA BUTTONS ── */
+.cta-group {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  animation: fadeIn 1s ease 1.5s both;
+}
+
+.btn {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 12px 28px;
+  text-decoration: none;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.btn:hover::before { opacity: 0.1; }
+
+.btn-primary {
+  background: var(--cyan);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 20px rgba(0,229,255,0.4), 0 0 40px rgba(0,229,255,0.2);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+}
+
+.btn-secondary:hover {
+  box-shadow: 0 0 15px rgba(0,229,255,0.2);
+  transform: translateY(-1px);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── WARNING BANNER ── */
+.warning {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--red);
+  border: 1px solid rgba(255,23,68,0.3);
+  background: rgba(255,23,68,0.05);
+  padding: 8px 20px;
+  letter-spacing: 1px;
+  margin-top: 2rem;
+  animation: fadeIn 1s ease 1.8s both;
+}
+
+/* ── SECTIONS ── */
+section {
+  position: relative;
+  z-index: 1;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 5rem 2rem;
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--cyan);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  opacity: 0.7;
+}
+
+.section-title {
+  font-family: var(--title);
+  font-size: clamp(1.5rem, 4vw, 2.2rem);
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.1em;
+  margin-bottom: 2rem;
+}
+
+/* ── DIVIDER ── */
+.divider {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  opacity: 0.2;
+}
+
+/* ── CONCEPT CARD ── */
+.concept-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 2rem 0;
+  border: 1px solid var(--border);
+}
+
+@media(max-width: 600px) { .concept-grid { grid-template-columns: 1fr; } }
+
+.concept-card {
+  background: var(--bg2);
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  position: relative;
+  transition: background 0.2s;
+}
+
+.concept-card:hover { background: var(--bg3); }
+
+.concept-card .icon {
+  font-family: var(--mono);
+  font-size: 20px;
+  color: var(--cyan);
+  margin-bottom: 0.75rem;
+  display: block;
+}
+
+.concept-card h3 {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: #fff;
+  letter-spacing: 2px;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+}
+
+.concept-card p {
+  font-size: 13px;
+  color: rgba(201,214,227,0.7);
+  line-height: 1.6;
+}
+
+/* ── ARCH BLOCK ── */
+.arch-block {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 2rem;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.8;
+  color: rgba(201,214,227,0.8);
+  position: relative;
+  overflow: hidden;
+}
+
+.arch-block::before {
+  content: 'architecture.txt';
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-size: 10px;
+  color: rgba(0,229,255,0.3);
+  letter-spacing: 1px;
+}
+
+.arch-block .hl-cyan { color: var(--cyan); }
+.arch-block .hl-green { color: var(--green); }
+.arch-block .hl-red { color: var(--red); }
+.arch-block .hl-white { color: #fff; font-weight: bold; }
+.arch-block .hl-dim { color: rgba(201,214,227,0.35); }
+
+/* ── MODULE TABLE ── */
+.module-list {
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.module-row {
+  display: grid;
+  grid-template-columns: 180px 120px 1fr;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+  gap: 1rem;
+  align-items: center;
+}
+
+.module-row:hover { background: var(--bg3); }
+.module-row:last-child { border-bottom: none; }
+
+.module-row.header {
+  background: var(--bg3);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--cyan);
+  text-transform: uppercase;
+}
+
+.module-name {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: #fff;
+}
+
+.status-active {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--green);
+  letter-spacing: 1px;
+}
+
+.status-disabled {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: rgba(201,214,227,0.3);
+  letter-spacing: 1px;
+}
+
+.module-desc {
+  font-size: 13px;
+  color: rgba(201,214,227,0.6);
+}
+
+/* ── TERMINAL BLOCK ── */
+.terminal {
+  background: #000;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin: 1.5rem 0;
+}
+
+.terminal-bar {
+  background: var(--bg3);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-red { background: #ff5f56; }
+.dot-yellow { background: #ffbd2e; }
+.dot-green { background: #27c93f; }
+
+.terminal-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: rgba(201,214,227,0.4);
+  margin-left: auto;
+  letter-spacing: 1px;
+}
+
+.terminal-body {
+  padding: 1.5rem;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.prompt { color: var(--green); }
+.cmd { color: #fff; }
+.comment { color: rgba(201,214,227,0.35); }
+.output { color: var(--cyan); }
+.output-dim { color: rgba(0,229,255,0.5); }
+.output-warn { color: var(--red); }
+
+/* ── FOOTER ── */
+footer {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 4rem 2rem;
+  border-top: 1px solid var(--border);
+}
+
+.footer-title {
+  font-family: var(--title);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.15);
+  letter-spacing: 0.3em;
+  margin-bottom: 1rem;
+}
+
+.footer-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: rgba(201,214,227,0.3);
+  letter-spacing: 2px;
+}
+
+.footer-text a {
+  color: var(--cyan);
+  text-decoration: none;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.footer-text a:hover { opacity: 1; }
+
+/* ── SCROLL REVEAL ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── FLICKER ── */
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.8; }
+  94% { opacity: 1; }
+  96% { opacity: 0.9; }
+  97% { opacity: 1; }
+}
+
+.hero { animation: flicker 8s infinite; }
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+
+<!-- ── HERO ── -->
+<div class="hero">
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+
+  <div class="status-bar">[ SYSTEM ONLINE ] &nbsp;·&nbsp; v0.1-ALPHA &nbsp;·&nbsp; AUTHORIZED USE ONLY</div>
+
+  <div class="title-wrap">
+    <h1 class="title">NEMESIS</h1>
+  </div>
+
+  <div class="subtitle">
+    <span id="typed-text"></span><span class="cursor"></span>
+  </div>
+
+  <div class="badges">
+    <span class="badge badge-cyan">Python 3.11+</span>
+    <span class="badge badge-cyan">LangGraph</span>
+    <span class="badge badge-cyan">Kali Linux · Docker</span>
+    <span class="badge badge-green">MIT License</span>
+    <span class="badge badge-red">v0.1 Alpha</span>
+  </div>
+
+  <div class="cta-group">
+    <a href="https://github.com/TrinityBerserker/nemesis" class="btn btn-primary">GitHub Repo</a>
+    <a href="#quickstart" class="btn btn-secondary">Quick Start</a>
+  </div>
+
+  <div class="warning">⚠ FOR AUTHORIZED SECURITY TESTING ONLY — UNAUTHORIZED USE IS ILLEGAL</div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ── WHAT IS ── -->
+<section class="reveal">
+  <div class="section-label">01 · Overview</div>
+  <div class="section-title">WHAT IS NEMESIS</div>
+
+  <p style="color:rgba(201,214,227,0.75); max-width:680px; margin-bottom:2rem; font-size:15px;">
+    NEMESIS is an <strong style="color:#fff">autonomous Red Team agent</strong> that replaces the manual loop
+    of a traditional penetration test with an AI-driven reasoning engine. Instead of an operator
+    manually running tools, reading output, and deciding the next step — NEMESIS does the entire
+    cycle by itself.
+  </p>
+
+  <div class="concept-grid">
+    <div class="concept-card">
+      <span class="icon">⚡</span>
+      <h3>Autonomous Reasoning</h3>
+      <p>The LLM doesn't just execute commands mechanically — it reasons about what results mean and adapts its strategy in real time, just like an experienced analyst.</p>
+    </div>
+    <div class="concept-card">
+      <span class="icon">🔒</span>
+      <h3>Rules of Engagement</h3>
+      <p>Every single action is validated against your scope config before execution. Double-checked. Kill-switch enabled. If it's out of scope, it never runs.</p>
+    </div>
+    <div class="concept-card">
+      <span class="icon">🐉</span>
+      <h3>Kali-Powered</h3>
+      <p>All offensive tooling runs inside an isolated Docker container with Kali Linux — nmap, nikto, gobuster, nuclei, enum4linux. No local install required.</p>
+    </div>
+    <div class="concept-card">
+      <span class="icon">📄</span>
+      <h3>Auto Reporting</h3>
+      <p>Findings are logged to JSONL with full timestamps and auto-generated into a dark-themed HTML report with severity breakdown. Board-ready output.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ── ARCHITECTURE ── -->
+<section class="reveal">
+  <div class="section-label">02 · Design</div>
+  <div class="section-title">ARCHITECTURE</div>
+
+  <div class="arch-block">
+<span class="hl-dim">┌────────────────────────────────────────────────────────────┐</span>
+<span class="hl-dim">│</span>                   <span class="hl-white">CLI  (cli.py)</span>                            <span class="hl-dim">│</span>
+<span class="hl-dim">│</span>            <span class="hl-dim">Click + Rich — your control surface</span>               <span class="hl-dim">│</span>
+<span class="hl-dim">└─────────────────────────┬──────────────────────────────────┘</span>
+                          <span class="hl-dim">│</span>
+<span class="hl-dim">┌─────────────────────────▼──────────────────────────────────┐</span>
+<span class="hl-dim">│</span>             <span class="hl-white">Intelligence Layer  (LangGraph)</span>                 <span class="hl-dim">│</span>
+<span class="hl-dim">│</span>                                                            <span class="hl-dim">│</span>
+<span class="hl-dim">│</span>  <span class="hl-cyan">┌─────────┐</span>  <span class="hl-cyan">┌──────────┐</span>  <span class="hl-cyan">┌──────────┐</span>  <span class="hl-green">┌────────┐</span>   <span class="hl-dim">│</span>
+<span class="hl-dim">│</span>  <span class="hl-cyan">│  plan() │</span><span class="hl-dim">──▶</span><span class="hl-cyan">│execute() │</span><span class="hl-dim">──▶</span><span class="hl-cyan">│analyze()│</span><span class="hl-dim">──▶</span><span class="hl-green">│report()│</span>   <span class="hl-dim">│</span>
+<span class="hl-dim">│</span>  <span class="hl-cyan">└─────────┘</span>  <span class="hl-cyan">└──────────┘</span>  <span class="hl-cyan">└──────────┘</span>  <span class="hl-green">└────────┘</span>   <span class="hl-dim">│</span>
+<span class="hl-dim">│</span>        <span class="hl-dim">▲                                        │</span>          <span class="hl-dim">│</span>
+<span class="hl-dim">│</span>        <span class="hl-dim">└──────────── loop until done ───────────┘</span>          <span class="hl-dim">│</span>
+<span class="hl-dim">└─────────────────────────┬──────────────────────────────────┘</span>
+              <span class="hl-dim">┌──────────┴──────────┐</span>
+   <span class="hl-dim">┌──────────▼────┐</span>  <span class="hl-dim">┌───▼──────┐</span>  <span class="hl-dim">┌──────▼──────────┐</span>
+   <span class="hl-dim">│</span><span class="hl-red"> RoE · roe.py  </span><span class="hl-dim">│</span>  <span class="hl-dim">│</span><span class="hl-cyan"> logger  </span><span class="hl-dim">│</span>  <span class="hl-dim">│</span><span class="hl-green"> KaliSession     </span><span class="hl-dim">│</span>
+   <span class="hl-dim">│</span><span class="hl-red"> Validates EVERY</span><span class="hl-dim">│</span>  <span class="hl-dim">│</span><span class="hl-cyan"> JSONL   </span><span class="hl-dim">│</span>  <span class="hl-dim">│</span><span class="hl-green"> docker exec     </span><span class="hl-dim">│</span>
+   <span class="hl-dim">│</span><span class="hl-red"> action pre-exec</span><span class="hl-dim">│</span>  <span class="hl-dim">│</span><span class="hl-cyan"> audit   </span><span class="hl-dim">│</span>  <span class="hl-dim">│</span><span class="hl-green"> Kali container  </span><span class="hl-dim">│</span>
+   <span class="hl-dim">└───────────────┘</span>  <span class="hl-dim">└──────────┘</span>  <span class="hl-dim">└─────────┬───────┘</span>
+                                              <span class="hl-dim">│</span>
+                                   <span class="hl-dim">┌──────────▼───────────┐</span>
+                                   <span class="hl-dim">│</span>  <span class="hl-white">nmap  nikto  gobuster</span> <span class="hl-dim">│</span>
+                                   <span class="hl-dim">│</span>  <span class="hl-white">nuclei    enum4linux</span>  <span class="hl-dim">│</span>
+                                   <span class="hl-dim">└──────────────────────┘</span>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ── MODULES ── -->
+<section class="reveal">
+  <div class="section-label">03 · Capabilities</div>
+  <div class="section-title">ACTIVE MODULES</div>
+
+  <div class="module-list">
+    <div class="module-row header">
+      <span>Module</span>
+      <span>Status</span>
+      <span>Description</span>
+    </div>
+    <div class="module-row">
+      <span class="module-name">nmap</span>
+      <span class="status-active">● ACTIVE</span>
+      <span class="module-desc">Port scan, service/version detection, OS fingerprinting</span>
+    </div>
+    <div class="module-row">
+      <span class="module-name">nikto</span>
+      <span class="status-active">● ACTIVE</span>
+      <span class="module-desc">Web server vulnerability scanning</span>
+    </div>
+    <div class="module-row">
+      <span class="module-name">gobuster</span>
+      <span class="status-active">● ACTIVE</span>
+      <span class="module-desc">Web directory and file bruteforcing</span>
+    </div>
+    <div class="module-row">
+      <span class="module-name">enum4linux</span>
+      <span class="status-active">● ACTIVE</span>
+      <span class="module-desc">Samba/Windows share and user enumeration</span>
+    </div>
+    <div class="module-row">
+      <span class="module-name">nuclei</span>
+      <span class="status-active">● ACTIVE</span>
+      <span class="module-desc">Template-based vulnerability detection</span>
+    </div>
+    <div class="module-row">
+      <span class="module-name">metasploit</span>
+      <span class="status-disabled">○ DISABLED</span>
+      <span class="module-desc">Exploitation — requires manual activation + explicit RoE</span>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ── QUICK START ── -->
+<section class="reveal" id="quickstart">
+  <div class="section-label">04 · Usage</div>
+  <div class="section-title">QUICK START</div>
+
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+      <span class="terminal-label">bash</span>
+    </div>
+    <div class="terminal-body">
+<span class="comment"># 1. Clone and install</span>
+<span class="prompt">$</span> <span class="cmd">git clone https://github.com/TrinityBerserker/nemesis.git && cd nemesis</span>
+<span class="prompt">$</span> <span class="cmd">python3 -m venv .venv && source .venv/bin/activate</span>
+<span class="prompt">$</span> <span class="cmd">pip install -r requirements.txt</span>
+
+<span class="comment"># 2. Configure your API key and scope</span>
+<span class="prompt">$</span> <span class="cmd">cp .env.example .env</span>  <span class="comment"># add ANTHROPIC_API_KEY</span>
+<span class="prompt">$</span> <span class="cmd">nano config.yaml</span>       <span class="comment"># set authorized_targets</span>
+
+<span class="comment"># 3. Spin up Kali</span>
+<span class="prompt">$</span> <span class="cmd">docker-compose -f docker/docker-compose.yml up -d --build</span>
+
+<span class="comment"># 4. Verify and run</span>
+<span class="prompt">$</span> <span class="cmd">python cli.py check</span>
+<span class="output">✅ Kali Docker available (user: root)</span>
+
+<span class="prompt">$</span> <span class="cmd">python cli.py scan --target 192.168.1.0/24</span>
+<span class="output-dim">[ NEMESIS ] Validating scope...</span>
+<span class="output">🎯 Initiating engagement against 1 target(s)</span>
+<span class="output-dim">▶ nmap -sV -sC -T3 --open -p 1-65535 ...</span>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-title">NEMESIS</div>
+  <div class="footer-text">
+    Built by <a href="https://github.com/TrinityBerserker">TrinityBerserker</a>
+    &nbsp;·&nbsp;
+    MIT License
+    &nbsp;·&nbsp;
+    Authorized security testing only
+  </div>
+</footer>
+
+<script>
+// ── TYPING EFFECT ──
+const phrases = [
+  'Autonomous Red Team Agent',
+  'LangGraph · Kali · Claude',
+  'Recon · Analyze · Report'
+];
+
+let phraseIndex = 0;
+let charIndex = 0;
+let isDeleting = false;
+let typingEl = document.getElementById('typed-text');
+
+function type() {
+  const current = phrases[phraseIndex];
+  if (isDeleting) {
+    typingEl.textContent = current.substring(0, charIndex - 1);
+    charIndex--;
+  } else {
+    typingEl.textContent = current.substring(0, charIndex + 1);
+    charIndex++;
+  }
+
+  let delay = isDeleting ? 40 : 80;
+
+  if (!isDeleting && charIndex === current.length) {
+    delay = 2200;
+    isDeleting = true;
+  } else if (isDeleting && charIndex === 0) {
+    isDeleting = false;
+    phraseIndex = (phraseIndex + 1) % phrases.length;
+    delay = 400;
+  }
+
+  setTimeout(type, delay);
+}
+
+setTimeout(type, 1200);
+
+// ── SCROLL REVEAL ──
+const reveals = document.querySelectorAll('.reveal');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      observer.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.15 });
+
+reveals.forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
