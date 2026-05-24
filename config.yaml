@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────
+#  NEMESIS - Configuración del engagement
+# ─────────────────────────────────────────
+
+engagement:
+  name: "Auditoría Interna Q2-2025"
+  operator: "gbermudez"
+  organization: "Exelia Logística Integral"
+  start_date: "2025-04-15"
+
+# ─── Rules of Engagement ─────────────────
+roe:
+  # IPs o rangos AUTORIZADOS (CIDR)
+  authorized_targets:
+    - "192.168.1.0/24"      # ejemplo — cambia por tus rangos reales
+    # - "10.10.5.0/24"
+
+  # IPs que NUNCA se deben tocar
+  excluded_targets:
+    - "192.168.1.1"         # gateway principal
+    - "192.168.1.254"       # SonicWall management
+
+  # Puertos excluidos globalmente
+  excluded_ports:
+    - 22    # SSH management propio
+
+  # Horario permitido (24h, local)
+  allowed_hours:
+    start: "22:00"
+    end: "06:00"
+    enforce: false          # true = mata el agente si sale del horario
+
+  # Kill switch — detiene todo si encuentra esto
+  kill_switch_strings:
+    - "domain controller"
+    - "PROD-DC"
+
+# ─── Módulos activos ──────────────────────
+modules:
+  recon:
+    enabled: true
+    nmap_flags: "-sV -sC -T4 --open"
+    port_range: "1-65535"
+    os_detection: true
+
+  enumeration:
+    enabled: true
+    tools:
+      - gobuster
+      - nikto
+      - enum4linux
+
+  vuln_scan:
+    enabled: true
+    tools:
+      - nuclei
+
+  exploitation:
+    enabled: false          # desactivado por defecto — activar manual
+    require_confirmation: true  # pide confirmación antes de cada exploit
+
+  post_exploitation:
+    enabled: false
+
+# ─── Reporting ───────────────────────────
+reporting:
+  format: "html"            # html | pdf | json
+  auto_generate: true
+  include_raw_output: true
+  severity_threshold: "low" # low | medium | high | critical

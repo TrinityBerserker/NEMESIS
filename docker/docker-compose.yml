@@ -1,0 +1,37 @@
+version: "3.8"
+
+networks:
+  # Red de operaciones — aquí vive Kali
+  nemesis-ops:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+services:
+  # Contenedor Kali Linux — ejecuta todas las herramientas
+  nemesis-kali:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: nemesis-kali
+    networks:
+      - nemesis-ops
+    volumes:
+      - ./logs:/workspace/logs
+      - ./reports:/workspace/reports
+    # Necesario para que nmap funcione bien
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    restart: unless-stopped
+
+  # Contenedor target de prueba (vulnerable by design)
+  # Descomenta para pruebas internas seguras
+  # target-dvwa:
+  #   image: vulnerables/web-dvwa
+  #   container_name: nemesis-target
+  #   networks:
+  #     - nemesis-ops
+  #   ports:
+  #     - "8080:80"
